@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:yolanda_style_room/screens/history_screen.dart';
+import 'package:yolanda_style_room/screens/inventory_screen.dart';
+import 'package:yolanda_style_room/screens/new_sale_screen.dart';
 import 'package:yolanda_style_room/screens/sales_chart_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -72,6 +75,14 @@ class DashboardScreen extends StatelessWidget {
                             Icons.add,
                             accentGold,
                             flex: 1,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => NewSaleScreen(),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(width: 10),
                           _buildActionButton(
@@ -79,6 +90,14 @@ class DashboardScreen extends StatelessWidget {
                             Icons.grid_view,
                             cardNavy,
                             flex: 1,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => InventoryScreen(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -106,6 +125,14 @@ class DashboardScreen extends StatelessWidget {
                             Icons.history,
                             cardNavy,
                             flex: 1,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => SalesHistoryScreen(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
