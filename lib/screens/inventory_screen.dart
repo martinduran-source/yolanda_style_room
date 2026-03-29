@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../database/database_helper.dart';
 
-class InventoryScreen extends StatelessWidget {
+class InventoryScreen extends StatefulWidget {
+  const InventoryScreen({super.key});
+
+  @override
+  _InventoryScreenState createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends State<InventoryScreen> {
   final Color primaryNavy = const Color(0xFF2C3E50);
   final Color accentGold = const Color(0xFFB89352);
   final Color lightBeige = const Color(0xFFF9F5F0);
-  final Color cardNavy = const Color(0xFF34495E);
+
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -15,16 +24,14 @@ class InventoryScreen extends StatelessWidget {
         backgroundColor: primaryNavy,
         elevation: 0,
         title: Text(
-          "INVENTORY",
+          "INVENTARIO",
           style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.5),
         ),
         iconTheme: IconThemeData(color: accentGold),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              // Lógica para agregar nuevo producto
-            },
+            onPressed: () => _showAddProductDialog(),
           ),
         ],
       ),
@@ -41,56 +48,38 @@ class InventoryScreen extends StatelessWidget {
                   topRight: Radius.circular(30),
                 ),
               ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    _buildInventoryStats(),
-                    const SizedBox(height: 20),
-                    Text(
-                      "PRODUCT LIST",
-                      style: GoogleFonts.oswald(
-                        fontSize: 18,
-                        color: primaryNavy,
-                        fontWeight: FontWeight.bold,
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: DatabaseHelper.instance.searchProducts(_searchQuery),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? "Sin productos"
+                            : "Sin resultados",
+                        style: TextStyle(color: primaryNavy.withOpacity(0.5)),
                       ),
-                    ),
-                    const SizedBox(height: 15),
-                    // Ejemplos de productos
-                    _buildProductItem(
-                      "Silk Evening Dress",
-                      "Dresses",
-                      12,
-                      150.00,
-                    ),
-                    _buildProductItem(
-                      "Leather High Heels",
-                      "Shoes",
-                      5,
-                      85.00,
-                      lowStock: true,
-                    ),
-                    _buildProductItem(
-                      "Classic Navy Blazer",
-                      "Outwear",
-                      24,
-                      120.00,
-                    ),
-                    _buildProductItem(
-                      "Golden Accessories Set",
-                      "Jewelry",
-                      0,
-                      45.00,
-                      outOfStock: true,
-                    ),
-                    _buildProductItem("Casual Linen Pants", "Pants", 18, 65.00),
-                    _buildProductItem("Velvet Clutch", "Bags", 8, 55.00),
-                  ],
-                ),
+                    );
+                  }
+                  final products = snapshot.data!;
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: products.length,
+                    itemBuilder: (context, i) {
+                      final p = products[i];
+                      return Card(
+                        child: ListTile(
+                          title: Text(p['name'] ?? 'Sin nombre'),
+                          subtitle: Text("Stock: ${p['stock'] ?? 0}"),
+                          trailing: Text("\$${p['price'] ?? 0}"),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ),
@@ -103,13 +92,12 @@ class InventoryScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: TextField(
-        style: const TextStyle(color: Colors.white),
+        onChanged: (value) => setState(() => _searchQuery = value),
         decoration: InputDecoration(
-          hintText: "Search products...",
-          hintStyle: const TextStyle(color: Colors.white54),
+          hintText: "Buscar productos...",
           prefixIcon: Icon(Icons.search, color: accentGold),
           filled: true,
-          fillColor: cardNavy,
+          fillColor: Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
             borderSide: BorderSide.none,
@@ -119,138 +107,51 @@ class InventoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInventoryStats() {
-    return Row(
-      children: [
-        _buildStatTile("In Stock", "345", Icons.inventory),
-        const SizedBox(width: 10),
-        _buildStatTile(
-          "Low Stock",
-          "3",
-          Icons.warning_amber_rounded,
-          color: Colors.orange,
-        ),
-      ],
-    );
-  }
+  void _showAddProductDialog() {
+    final nameController = TextEditingController();
+    final priceController = TextEditingController();
+    final stockController = TextEditingController();
 
-  Widget _buildStatTile(
-    String label,
-    String value,
-    IconData icon, {
-    Color? color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-        ),
-        child: Row(
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Agregar producto"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color ?? accentGold, size: 24),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                ),
-              ],
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Nombre"),
+            ),
+            TextField(
+              controller: priceController,
+              decoration: const InputDecoration(labelText: "Precio"),
+              keyboardType: TextInputType.number,
+            ),
+            TextField(
+              controller: stockController,
+              decoration: const InputDecoration(labelText: "Stock"),
+              keyboardType: TextInputType.number,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildProductItem(
-    String name,
-    String category,
-    int stock,
-    double price, {
-    bool lowStock = false,
-    bool outOfStock = false,
-  }) {
-    Color stockColor = outOfStock
-        ? Colors.red
-        : (lowStock ? Colors.orange : Colors.green);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(
-        children: [
-          // Placeholder para imagen del producto
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: lightBeige,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.image, color: accentGold.withOpacity(0.5)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar"),
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  category,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                "\$${price.toStringAsFixed(2)}",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: primaryNavy,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: stockColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  outOfStock ? "Out of stock" : "$stock in stock",
-                  style: TextStyle(
-                    color: stockColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+          ElevatedButton(
+            onPressed: () async {
+              await DatabaseHelper.instance.insertProduct(
+                nameController.text,
+                "General", // categoría por defecto
+                double.tryParse(priceController.text) ?? 0.0,
+                int.tryParse(stockController.text) ?? 0,
+              );
+              Navigator.pop(context);
+              setState(() {}); // refresca la lista
+            },
+            child: const Text("Guardar"),
           ),
         ],
       ),
