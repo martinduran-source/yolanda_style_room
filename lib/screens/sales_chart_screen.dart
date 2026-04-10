@@ -16,12 +16,13 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
   final Color lightBeige = const Color(0xFFF9F5F0);
 
   late Future<List<FlSpot>> _salesSpots;
+String selectedFilter = 'Mes';
 
-  @override
-  void initState() {
-    super.initState();
-    _salesSpots = DatabaseHelper.instance.getSalesSpots();
-  }
+@override
+void initState() {
+  super.initState();
+  _salesSpots = DatabaseHelper.instance.getSalesSpots(selectedFilter);
+}
 
   @override
   Widget build(BuildContext context) {

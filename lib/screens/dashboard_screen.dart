@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'history_screen.dart';
 import 'inventory_screen.dart';
 import 'new_sale_screen.dart';
@@ -18,7 +19,10 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           "YOLANDA'S STYLE",
-          style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 2),
+          style: GoogleFonts.oswald(
+            color: Colors.white,
+            letterSpacing: 2,
+          ),
         ),
         backgroundColor: primaryNavy,
         centerTitle: true,
@@ -28,6 +32,8 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 10),
+
+            /// Título
             Text(
               "Menú de Gestión",
               style: GoogleFonts.playfairDisplay(
@@ -36,7 +42,10 @@ class DashboardScreen extends StatelessWidget {
                 color: primaryNavy,
               ),
             ),
+
             const SizedBox(height: 30),
+
+            /// Grid de opciones
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -49,31 +58,46 @@ class DashboardScreen extends StatelessWidget {
                     Icons.add_shopping_cart,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(context, const NewSaleScreen()),
+                    () => _navigateTo(
+                      context,
+                      const NewSaleScreen(),
+                    ),
                   ),
+
                   _buildCard(
                     context,
                     "HISTORIAL",
                     Icons.history,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(context, const HistoryScreen()),
+                    () => _navigateTo(
+                      context, 
+                      const HistoryScreen(),
+                    ),
                   ),
+
                   _buildCard(
                     context,
                     "INVENTARIO",
                     Icons.inventory_2_outlined,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(context, const InventoryScreen()),
+                    () => _navigateTo(
+                      context,
+                      const InventoryScreen(),
+                    ),
                   ),
+
                   _buildCard(
                     context,
                     "REPORTES",
                     Icons.bar_chart,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(context, const SalesChartScreen()),
+                    () => _navigateTo(
+                      context,
+                      const SalesChartScreen(),
+                    ),
                   ),
                 ],
               ),
@@ -84,10 +108,15 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  /// Navegación entre pantallas
   void _navigateTo(BuildContext context, Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
   }
 
+  /// Tarjeta reutilizable del menú
   Widget _buildCard(
     BuildContext context,
     String title,
@@ -118,7 +147,9 @@ class DashboardScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 50, color: gold),
+
               const SizedBox(height: 15),
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(

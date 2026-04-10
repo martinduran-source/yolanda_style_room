@@ -6,101 +6,113 @@ class NewSaleScreen extends StatefulWidget {
   const NewSaleScreen({super.key});
 
   @override
-  _NewSaleScreenState createState() => _NewSaleScreenState();
+  State<NewSaleScreen> createState() => _NewSaleScreenState();
 }
 
 class _NewSaleScreenState extends State<NewSaleScreen> {
+  // ======================
+  // COLORES
+  // ======================
   final Color primaryNavy = const Color(0xFF2C3E50);
   final Color accentGold = const Color(0xFFB89352);
   final Color lightBeige = const Color(0xFFF9F5F0);
 
+  // ======================
+  // VARIABLES
+  // ======================
   List<Map<String, dynamic>> cartItems = [];
   double totalSale = 0.0;
-  final TextEditingController _searchController = TextEditingController();
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  final TextEditingController _searchController =
+      TextEditingController();
 
+  // ======================
+  // CALCULAR TOTAL
+  // ======================
   void _calculateTotal() {
     double tempTotal = 0;
+
     for (var item in cartItems) {
       tempTotal += (item['price'] * item['qty']);
     }
+
     setState(() => totalSale = tempTotal);
   }
 
+  // ======================
+  // BUSCAR PRODUCTO
+  // ======================
   Future<void> _searchAndAddProduct(String query) async {
     if (query.trim().isEmpty) return;
 
-    try {
-      final products = await DatabaseHelper.instance.searchProducts(query);
-      if (products.isNotEmpty) {
-        _addProductToCart(products.first);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("No se encontró '$query'"),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-        );
-      }
+    final products =
+        await DatabaseHelper.instance.searchProducts(query);
+
+    if (products.isNotEmpty) {
+      _addProductToCart(products.first);
+      _searchController.clear();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("No se encontró '$query'"),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
+  // ======================
+  // AGREGAR AL CARRITO
+  // ======================
   void _addProductToCart(Map<String, dynamic> product) {
     setState(() {
-      int index = cartItems.indexWhere((item) => item['id'] == product['id']);
+      int index = cartItems.indexWhere(
+        (item) => item['id'] == product['id'],
+      );
+
       if (index >= 0) {
-        var updatedItem = Map<String, dynamic>.from(cartItems[index]);
-        updatedItem['qty'] += 1;
-        cartItems[index] = updatedItem;
+        cartItems[index]['qty'] += 1;
       } else {
         cartItems.add({
           'id': product['id'],
-          'name': product['name'] ?? 'Producto sin nombre',
-          'price': (product['price'] as num?)?.toDouble() ?? 0.0,
+          'name': product['name'],
+          'price': (product['price'] as num).toDouble(),
           'qty': 1,
         });
       }
+
       _calculateTotal();
     });
   }
 
+  // ======================
+  // UI PRINCIPAL
+  // ======================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: primaryNavy,
+
+      /// APP BAR
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           "NUEVA VENTA",
-          style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.5),
+          style: GoogleFonts.oswald(color: Colors.white),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
       ),
+
+      /// BODY
       body: Column(
         children: [
-          _buildCustomerInfo(),
           Expanded(
             child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: lightBeige,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF9F5F0),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(30),
                 ),
               ),
               child: Column(
@@ -117,49 +129,18 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     );
   }
 
-  Widget _buildCustomerInfo() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: accentGold,
-            child: const Icon(Icons.person, color: Colors.white),
-          ),
-          const SizedBox(width: 15),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Cliente Walk-in",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                "Tarifa estándar",
-                style: TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ======================
+  // SEARCH BAR
+  // ======================
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: TextField(
         controller: _searchController,
+        onSubmitted: _searchAndAddProduct,
         decoration: InputDecoration(
-          hintText: "Buscar productos (ej: Vestido, Blusa)...",
+          hintText: "Buscar producto...",
           prefixIcon: Icon(Icons.search, color: primaryNavy),
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () => _searchController.clear(),
-          ),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -167,29 +148,16 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             borderSide: BorderSide.none,
           ),
         ),
-        onSubmitted: _searchAndAddProduct,
       ),
     );
   }
 
+  // ======================
+  // LISTA DEL CARRITO
+  // ======================
   Widget _buildCartList() {
     if (cartItems.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.shopping_cart_outlined,
-              size: 80,
-              color: primaryNavy.withOpacity(0.3),
-            ),
-            Text(
-              "Carrito vacío",
-              style: TextStyle(color: primaryNavy.withOpacity(0.5)),
-            ),
-          ],
-        ),
-      );
+      return const Center(child: Text("Carrito vacío"));
     }
 
     return ListView.builder(
@@ -197,57 +165,28 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       itemCount: cartItems.length,
       itemBuilder: (context, index) {
         final item = cartItems[index];
+
         return Card(
-          margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
             title: Text(
               item['name'],
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            subtitle: Text("\$${item['price'].toStringAsFixed(2)} c/u"),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.remove_circle_outline,
-                    color: Colors.red,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      if (item['qty'] > 1) {
-                        item['qty']--;
-                      } else {
-                        cartItems.removeAt(index);
-                      }
-                      _calculateTotal();
-                    });
-                  },
-                ),
-                Text(
-                  "${item['qty']}",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.add_circle_outline,
-                    color: Colors.green,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      item['qty']++;
-                      _calculateTotal();
-                    });
-                  },
-                ),
-                Text(
-                  "\$${(item['price'] * item['qty']).toStringAsFixed(2)}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
+            subtitle:
+                Text("\$${item['price']} x ${item['qty']}"),
+            trailing: IconButton(
+              icon: const Icon(
+                Icons.delete,
+                color: Colors.red,
+              ),
+              onPressed: () {
+                setState(() {
+                  cartItems.removeAt(index);
+                  _calculateTotal();
+                });
+              },
             ),
           ),
         );
@@ -255,85 +194,56 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     );
   }
 
+  // ======================
+  // CHECKOUT
+  // ======================
   Widget _buildCheckoutSection() {
     return Container(
       padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
+      color: Colors.white,
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 "TOTAL",
-                style: GoogleFonts.oswald(fontSize: 20, color: primaryNavy),
+                style: GoogleFonts.oswald(fontSize: 20),
               ),
               Text(
                 "\$${totalSale.toStringAsFixed(2)}",
                 style: GoogleFonts.oswald(
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
                   color: accentGold,
                 ),
               ),
             ],
           ),
+
           const SizedBox(height: 20),
+
           SizedBox(
             width: double.infinity,
-            height: 55,
+            height: 50,
             child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryNavy,
+              ),
               onPressed: cartItems.isEmpty
                   ? null
                   : () async {
-                      try {
-                        await DatabaseHelper.instance.processSale(
-                          cartItems,
-                          totalSale,
-                        );
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "¡Venta completada! Stock actualizado.",
-                              ),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                          Navigator.pop(context);
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Error: $e"),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
+                      await DatabaseHelper.instance
+                          .processSale(
+                        cartItems,
+                        totalSale,
+                      );
+
+                      Navigator.pop(context);
                     },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryNavy,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
               child: const Text(
                 "COMPLETAR VENTA",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.white),
               ),
             ),
           ),
