@@ -34,10 +34,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         iconTheme: IconThemeData(color: accentGold),
         title: Text(
           "INVENTARIO",
-          style: GoogleFonts.oswald(
-            color: Colors.white,
-            letterSpacing: 1.5,
-          ),
+          style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.5),
         ),
         actions: [
           IconButton(
@@ -64,14 +61,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ),
               child: FutureBuilder<List<Map<String, dynamic>>>(
-                future:
-                    DatabaseHelper.instance.searchProducts(_searchQuery),
+                future: DatabaseHelper.instance.searchProducts(_searchQuery),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -80,9 +73,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         _searchQuery.isEmpty
                             ? "Sin productos"
                             : "Sin resultados",
-                        style: TextStyle(
-                          color: primaryNavy.withOpacity(0.5),
-                        ),
+                        style: TextStyle(color: primaryNavy.withOpacity(0.5)),
                       ),
                     );
                   }
@@ -102,8 +93,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: ListTile(
-                          contentPadding:
-                              const EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 5,
                           ),
@@ -124,10 +114,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               color: Colors.redAccent,
                               size: 28,
                             ),
-                            onPressed: () => _showDeleteDialog(
-                              p['id'],
-                              p['name'],
-                            ),
+                            onPressed: () =>
+                                _showDeleteDialog(p['id'], p['name']),
                           ),
                         ),
                       );
@@ -149,8 +137,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: TextField(
-        onChanged: (value) =>
-            setState(() => _searchQuery = value),
+        onChanged: (value) => setState(() => _searchQuery = value),
         decoration: InputDecoration(
           hintText: "Buscar productos...",
           prefixIcon: Icon(Icons.search, color: accentGold),
@@ -175,9 +162,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("¿Eliminar producto?"),
         content: Text(
           "Estás a punto de borrar '$name'. "
@@ -186,10 +171,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "CANCELAR",
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -224,6 +206,41 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   // =====================
+  // Procesar Ventas
+  // =====================
+  Future<void> processSale(
+    List<Map<String, dynamic>> cart,
+    double total,
+  ) async {
+    final db = await DatabaseHelper.instance.database;
+
+    await db.transaction((txn) async {
+      int saleId = await txn.insert('sales', {
+        'date': DateTime.now().toIso8601String(),
+        'total': total,
+        'status': 'PAID',
+        'item_count': cart.length,
+      });
+
+      for (var item in cart) {
+        await txn.insert('sale_items', {
+          'sale_id': saleId,
+          'product_id': item['id'],
+          'quantity': item['qty'],
+          'price_at_sale': item['price'],
+        });
+
+        await txn.rawUpdate(
+          'UPDATE products SET stock = stock - ? WHERE id = ?',
+          [item['qty'], item['id']],
+        );
+      }
+    });
+
+    setState(() {});
+  }
+
+  // =====================
   // AGREGAR PRODUCTO
   // =====================
   void _showAddProductDialog() {
@@ -240,19 +257,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
           children: [
             TextField(
               controller: nameController,
-              decoration:
-                  const InputDecoration(labelText: "Nombre"),
+              decoration: const InputDecoration(labelText: "Nombre"),
             ),
             TextField(
               controller: priceController,
-              decoration:
-                  const InputDecoration(labelText: "Precio"),
+              decoration: const InputDecoration(labelText: "Precio"),
               keyboardType: TextInputType.number,
             ),
             TextField(
               controller: stockController,
-              decoration:
-                  const InputDecoration(labelText: "Stock"),
+              decoration: const InputDecoration(labelText: "Stock"),
               keyboardType: TextInputType.number,
             ),
           ],
