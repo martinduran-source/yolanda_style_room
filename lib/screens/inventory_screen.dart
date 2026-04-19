@@ -19,6 +19,40 @@ class _InventoryScreenState extends State<InventoryScreen> {
   void _refresh() {
     setState(() {});
   }
+   void _deleteProduct(int id, String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "¿Eliminar producto?", 
+          style: GoogleFonts.oswald(color: Colors.red)
+        ),
+        content: Text("¿Estás seguro de que deseas eliminar '$name'? Esta acción no se puede deshacer."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              // Llama al método de la base de datos que agregamos antes
+              await DatabaseHelper.instance.deleteProduct(id); 
+              if (mounted) {
+                Navigator.pop(context); // Cierra el diálogo
+                _refresh(); // Refresca la lista
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Producto eliminado")),
+                );
+              }
+            },
+            child: const Text("ELIMINAR", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   // --- MÉTODO PARA EDITAR PRODUCTO ---
   void _showEditProductDialog(Map<String, dynamic> product) {
@@ -29,6 +63,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final stockController = TextEditingController(
       text: product['stock'].toString(),
     );
+
+    // --- MÉTODO PARA ELIMINAR PRODUCTO ---
+ 
 
     showDialog(
       context: context,
@@ -243,14 +280,27 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               color: isOutOfStock ? Colors.red : Colors.black54,
                             ),
                           ),
-                          trailing: IconButton(
-                            icon: Icon(
-                              Icons.edit_note,
-                              color: isOutOfStock ? Colors.grey : accentGold,
-                              size: 30,
-                            ),
-                            onPressed: () => _showEditProductDialog(p),
-                          ),
+                         trailing: Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    IconButton(
+      icon: Icon(
+        Icons.edit_note,
+        color: isOutOfStock ? Colors.grey : accentGold,
+        size: 28,
+      ),
+      onPressed: () => _showEditProductDialog(p),
+    ),
+    IconButton(
+      icon: const Icon(
+        Icons.delete_sweep_outlined,
+        color: Colors.redAccent,
+        size: 28,
+      ),
+      onPressed: () => _deleteProduct(p['id'], p['name'] ?? 'Sin nombre'),
+    ),
+  ],
+),
                         ),
                       );
                     },

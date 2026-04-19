@@ -252,6 +252,7 @@ class DatabaseHelper {
     }).toList();
   }
 
+
   // Dentro de tu clase DatabaseHelper
   Future<int> updateProduct(
     int id,
