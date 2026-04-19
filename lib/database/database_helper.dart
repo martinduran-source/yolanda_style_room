@@ -61,76 +61,64 @@ class DatabaseHelper {
         FOREIGN KEY (product_id) REFERENCES products(id)
       )
     ''');
-
-    await _insertMockData(db);
-  }
-
-  Future<void> _insertMockData(Database db) async {
-    await db.insert('products', {
-      'name': 'Silk Evening Dress',
-      'category': 'Dresses',
-      'price': 150.0,
-      'stock': 12,
-    });
   }
 
   /// ===========================================================
-  /// LÓGICA DE INVENTARIO (CORREGIDA)
+  /// LÓGICA DE INVENTARIO
   /// ===========================================================
 
-  // BUSCAR: Solo muestra productos activos
+  // BUSCAR: Solo muestra productos activos (incluye stock 0)
   Future<List<Map<String, dynamic>>> searchProducts(String query) async {
     final db = await instance.database;
     return await db.query(
       'products',
       where: 'name LIKE ? AND is_active = 1',
       whereArgs: ['%$query%'],
-      orderBy: 'id DESC',
+      orderBy: 'stock DESC', // Opcional: primero los que tienen stock
     );
   }
 
-  // AGREGAR: Ahora busca si existe para SUMAR, no para reemplazar
-  Future<void> insertOrUpdateProduct(
+  // INSERTAR O ACTUALIZAR: Suma stock si el nombre ya existe
+  Future<void> insertProduct(
     String name,
     String category,
     double price,
-    int amountToAdd,
+    int stock,
   ) async {
     final db = await instance.database;
+    final cleanName = name.trim();
 
     final List<Map<String, dynamic>> existing = await db.query(
       'products',
-      where: 'name = ?',
-      whereArgs: [name],
+      where: 'LOWER(name) = ?',
+      whereArgs: [cleanName.toLowerCase()],
     );
 
     if (existing.isNotEmpty) {
-      // Si ya existe, sumamos al stock actual
       int id = existing.first['id'];
       int currentStock = existing.first['stock'];
       await db.update(
         'products',
         {
-          'stock': currentStock + amountToAdd,
-          'price': price, // Actualizamos precio por si cambió
-          'is_active': 1,
+          'stock': currentStock + stock,
+          'price': price,
+          'is_active': 1, // Reactivamos si estaba borrado
         },
         where: 'id = ?',
         whereArgs: [id],
       );
     } else {
-      // Si es nuevo, lo creamos
       await db.insert('products', {
-        'name': name,
+        'name': cleanName,
         'category': category,
         'price': price,
-        'stock': amountToAdd,
+        'stock': stock,
         'is_active': 1,
       });
     }
   }
 
-  // DISMINUIR STOCK: Para cuando quieres quitar unidades (ej. de 5 a 3)
+  // RESTAR STOCK: Útil para ajustes manuales o mermas
   Future<void> decreaseStock(int productId, int quantityToRemove) async {
     final db = await instance.database;
     await db.rawUpdate(
@@ -139,12 +127,23 @@ class DatabaseHelper {
     );
   }
 
-  // ELIMINADO LÓGICO: Para que ya no aparezca en la lista
+  // ELIMINADO LÓGICO: Oculta el producto pero mantiene historial
   Future<int> deleteProduct(int id) async {
     final db = await instance.database;
     return await db.update(
       'products',
-      {'is_active': 0},
+      {'is_active': 0, 'stock': 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // NUEVO: Marcar producto como agotado sin desactivarlo
+  Future<int> markAsOutOfStock(int id) async {
+    final db = await instance.database;
+    return await db.update(
+      'products',
+      {'stock': 0}, // Solo bajamos el stock a 0
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -154,7 +153,10 @@ class DatabaseHelper {
   /// VENTAS Y GRÁFICAS
   /// ===========================================================
 
-  Future<void> processSale(List<Map<String, dynamic>> cart, double total) async {
+  Future<void> processSale(
+    List<Map<String, dynamic>> cart,
+    double total,
+  ) async {
     final db = await instance.database;
     await db.transaction((txn) async {
       int saleId = await txn.insert('sales', {
@@ -165,8 +167,11 @@ class DatabaseHelper {
       });
 
       for (var item in cart) {
+        // Validación de stock antes de descontar
         final currentStock = Sqflite.firstIntValue(
-          await txn.rawQuery('SELECT stock FROM products WHERE id = ?', [item['id']]),
+          await txn.rawQuery('SELECT stock FROM products WHERE id = ?', [
+            item['id'],
+          ]),
         );
 
         if (currentStock != null && currentStock >= item['qty']) {
@@ -182,18 +187,29 @@ class DatabaseHelper {
             [item['qty'], item['id']],
           );
         } else {
-          throw Exception("Stock insuficiente");
+          throw Exception("Stock insuficiente para ${item['name']}");
         }
       }
     });
   }
+  // MÉTODOS PARA OBTENER PRODUCTOS (PARA LA SELECCIÓN RÁPIDA)
 
+  Future<List<Map<String, dynamic>>> getProducts() async {
+    final db = await instance.database;
+    // Traemos solo los productos activos para vender
+    return await db.query(
+      'products',
+      where: 'is_active = 1',
+      orderBy: 'name ASC',
+    );
+  }
+
+  // HISTORIAL: con detalle de productos vendidos
   Future<List<Map<String, dynamic>>> getSalesHistory() async {
     final db = await instance.database;
     return await db.rawQuery('''
-      SELECT s.id, s.total, s.date,
-      GROUP_CONCAT(p.name || ' (\$ ' || si.price_at_sale || ' x ' || si.quantity || ')', '\n') AS products_summary,
-      s.item_count
+      SELECT s.id, s.date, s.total, s.item_count,
+      GROUP_CONCAT(p.name || ' x' || si.quantity, ', ') AS products_summary
       FROM sales s
       JOIN sale_items si ON s.id = si.sale_id
       JOIN products p ON si.product_id = p.id
@@ -202,25 +218,70 @@ class DatabaseHelper {
     ''');
   }
 
-  Future<double> getTotalSalesMonth() async {
-    final db = await instance.database;
-    final result = await db.rawQuery(
-      "SELECT SUM(total) as total FROM sales WHERE STRFTIME('%m', date) = STRFTIME('%m', 'now')",
-    );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
-  }
-
+  // GRÁFICA: Número de ventas por hora o día
   Future<List<FlSpot>> getSalesSpots(String filter) async {
     final db = await instance.database;
     String query = "";
 
     if (filter == 'Hoy' || filter == 'Día') {
-      query = "SELECT STRFTIME('%H', date) as x, COUNT(id) as y FROM sales WHERE DATE(date) = DATE('now') GROUP BY x";
+      query = """
+        SELECT STRFTIME('%H', date) as x, COUNT(id) as y 
+        FROM sales 
+        WHERE DATE(date) = DATE('now') 
+        GROUP BY x 
+        ORDER BY x ASC
+      """;
     } else {
-      query = "SELECT STRFTIME('%d', date) as x, COUNT(id) as y FROM sales WHERE STRFTIME('%m', date) = STRFTIME('%m', 'now') GROUP BY x";
+      query = """
+        SELECT STRFTIME('%d', date) as x, COUNT(id) as y 
+        FROM sales 
+        WHERE STRFTIME('%m', date) = STRFTIME('%m', 'now') 
+        GROUP BY x 
+        ORDER BY x ASC
+      """;
     }
 
     final result = await db.rawQuery(query);
-    return result.map((data) => FlSpot(double.parse(data['x'].toString()), (data['y'] as num).toDouble())).toList();
+    if (result.isEmpty) return [];
+
+    return result.map((data) {
+      return FlSpot(
+        double.parse(data['x'].toString()),
+        (data['y'] as num).toDouble(),
+      );
+    }).toList();
+  }
+
+  // Dentro de tu clase DatabaseHelper
+  Future<int> updateProduct(
+    int id,
+    String name,
+    String category,
+    double price,
+    int stock,
+  ) async {
+    final db = await instance.database;
+    return await db.update(
+      'products', // Asegúrate que este sea el nombre de tu tabla
+      {'name': name, 'category': category, 'price': price, 'stock': stock},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Método para insertar una venta y obtener su ID
+
+  Future<int> insertSale(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    // 'sales' debe ser el nombre de tu tabla de ventas
+    return await db.insert('sales', row);
+  }
+
+  // Método para insertar un producto específico dentro de una venta
+
+  Future<int> insertSaleItem(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    // 'sale_items' debe ser el nombre de tu tabla de detalles
+    return await db.insert('sale_items', row);
   }
 }

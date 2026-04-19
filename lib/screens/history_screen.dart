@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../database/database_helper.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const Color primaryNavy = Color(0xFF2C3E50);
-    const Color accentGold = Color(0xFFB89352);
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
 
+class _HistoryScreenState extends State<HistoryScreen> {
+  // Colores del tema
+  final Color primaryNavy = const Color(0xFF2C3E50);
+  final Color accentGold = const Color(0xFFB89352);
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F5F0),
       appBar: AppBar(
-        title: const Text(
-          "HISTORIAL DE VENTAS",
-          style: TextStyle(color: Colors.white, letterSpacing: 1.2),
+        title: Text(
+          "HISTORIAL",
+          style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.2),
         ),
         backgroundColor: primaryNavy,
         iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: DatabaseHelper.instance.getSalesHistory(),
@@ -25,106 +33,72 @@ class HistoryScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return Center(child: Text("Error al cargar: ${snapshot.error}"));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No hay ventas registradas"));
-          }
 
-          final sales = snapshot.data!;
-          return ListView.builder(
-            itemCount: sales.length,
-            padding: const EdgeInsets.all(12),
-            itemBuilder: (context, i) {
-              final s = sales[i];
-              return Card(
-                elevation: 3,
-                margin: const EdgeInsets.only(bottom: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+          final int totalVentas = snapshot.data?.length ?? 0;
+
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(40),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: primaryNavy,
-                                radius: 15,
-                                child: Text(
-                                  "${s['item_count']}",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                "VENTA #${s['id']}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            "\$${s['total'].toStringAsFixed(2)}",
-                            style: const TextStyle(
-                              color: accentGold,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ],
+                      Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 50,
+                        color: accentGold,
                       ),
-                      const Divider(height: 25),
-                      const Text(
-                        "DETALLE DE PRODUCTOS:",
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 10),
                       Text(
-                        s['products_summary'] ?? "Sin detalle",
-                        style: TextStyle(
-                          color: Colors.grey[850],
-                          fontSize: 14,
-                          height: 1.4,
+                        "$totalVentas",
+                        style: GoogleFonts.oswald(
+                          fontSize: 60,
+                          fontWeight: FontWeight.bold,
+                          color: primaryNavy,
                         ),
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time,
-                              size: 14, color: Colors.grey),
-                          const SizedBox(width: 5),
-                          Text(
-                            "${s['date']}"
-                                .split('.')[0]
-                                .replaceAll('T', ' '),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 30),
+                Text(
+                  "VENTAS REALIZADAS",
+                  style: GoogleFonts.oswald(
+                    fontSize: 22,
+                    letterSpacing: 2,
+                    color: primaryNavy,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "En total desde el inicio",
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
+                if (totalVentas > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Text(
+                      "¡Datos listos para reportes!",
+                      style: TextStyle(
+                        color: accentGold,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),

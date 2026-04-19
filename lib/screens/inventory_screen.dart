@@ -10,24 +10,156 @@ class InventoryScreen extends StatefulWidget {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
-  // =====================
-  // COLORES
-  // =====================
   final Color primaryNavy = const Color(0xFF2C3E50);
   final Color accentGold = const Color(0xFFB89352);
   final Color lightBeige = const Color(0xFFF9F5F0);
 
   String _searchQuery = '';
 
-  // =====================
-  // UI PRINCIPAL
-  // =====================
+  void _refresh() {
+    setState(() {});
+  }
+
+  // --- MÉTODO PARA EDITAR PRODUCTO ---
+  void _showEditProductDialog(Map<String, dynamic> product) {
+    final nameController = TextEditingController(text: product['name']);
+    final priceController = TextEditingController(
+      text: product['price'].toString(),
+    );
+    final stockController = TextEditingController(
+      text: product['stock'].toString(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          "Editar Producto",
+          style: GoogleFonts.oswald(color: primaryNavy),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: "Nombre del Producto",
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: priceController,
+                decoration: const InputDecoration(
+                  labelText: "Precio (\$)",
+                  prefixText: "\$ ",
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: stockController,
+                decoration: const InputDecoration(labelText: "Stock Actual"),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("CANCELAR", style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryNavy,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () async {
+              await DatabaseHelper.instance.updateProduct(
+                product['id'],
+                nameController.text,
+                product['category'] ?? 'General',
+                double.tryParse(priceController.text) ?? 0.0,
+                int.tryParse(stockController.text) ?? 0,
+              );
+
+              if (mounted) {
+                Navigator.pop(context);
+                _refresh();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Producto actualizado correctamente"),
+                  ),
+                );
+              }
+            },
+            child: const Text("GUARDAR", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- MÉTODO PARA AÑADIR PRODUCTO ---
+  void _showAddProductDialog() {
+    final nameController = TextEditingController();
+    final priceController = TextEditingController();
+    final stockController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Nuevo Producto", style: GoogleFonts.oswald()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: "Nombre"),
+            ),
+            TextField(
+              controller: priceController,
+              decoration: const InputDecoration(labelText: "Precio"),
+              keyboardType: TextInputType.number,
+            ),
+            TextField(
+              controller: stockController,
+              decoration: const InputDecoration(labelText: "Stock inicial"),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryNavy),
+            onPressed: () async {
+              await DatabaseHelper.instance.insertProduct(
+                nameController.text,
+                "General",
+                double.tryParse(priceController.text) ?? 0,
+                int.tryParse(stockController.text) ?? 0,
+              );
+              Navigator.pop(context);
+              _refresh();
+            },
+            child: const Text("Guardar", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: primaryNavy,
-
-      /// APP BAR
       appBar: AppBar(
         backgroundColor: primaryNavy,
         elevation: 0,
@@ -37,25 +169,22 @@ class _InventoryScreenState extends State<InventoryScreen> {
           style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.5),
         ),
         actions: [
+          // Mantenemos solo el botón de añadir
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: _showAddProductDialog,
           ),
         ],
       ),
-
-      /// BODY
       body: Column(
         children: [
           _buildSearchBar(),
-
-          /// LISTA DE PRODUCTOS
           Expanded(
             child: Container(
               width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF9F5F0),
-                borderRadius: BorderRadius.only(
+              decoration: BoxDecoration(
+                color: lightBeige,
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(30),
                   topRight: Radius.circular(30),
                 ),
@@ -66,13 +195,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Center(
                       child: Text(
-                        _searchQuery.isEmpty
-                            ? "Sin productos"
-                            : "Sin resultados",
+                        "Sin productos",
                         style: TextStyle(color: primaryNavy.withOpacity(0.5)),
                       ),
                     );
@@ -85,10 +211,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     itemCount: products.length,
                     itemBuilder: (context, i) {
                       final p = products[i];
+                      final int stock = p['stock'] ?? 0;
+                      final bool isOutOfStock = stock <= 0;
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
+                        elevation: isOutOfStock ? 0 : 2,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
@@ -97,25 +225,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             horizontal: 20,
                             vertical: 5,
                           ),
+                          leading: Icon(Icons.inventory_2, color: accentGold),
                           title: Text(
                             p['name'] ?? 'Sin nombre',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              decoration: isOutOfStock
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
                           ),
                           subtitle: Text(
-                            "Stock: ${p['stock'] ?? 0} | "
-                            "Precio: \$${p['price'] ?? 0}",
+                            isOutOfStock
+                                ? "FUERA DE STOCK"
+                                : "Stock: $stock | Precio: \$${p['price']}",
+                            style: TextStyle(
+                              color: isOutOfStock ? Colors.red : Colors.black54,
+                            ),
                           ),
                           trailing: IconButton(
-                            icon: const Icon(
-                              Icons.delete_forever,
-                              color: Colors.redAccent,
-                              size: 28,
+                            icon: Icon(
+                              Icons.edit_note,
+                              color: isOutOfStock ? Colors.grey : accentGold,
+                              size: 30,
                             ),
-                            onPressed: () =>
-                                _showDeleteDialog(p['id'], p['name']),
+                            onPressed: () => _showEditProductDialog(p),
                           ),
                         ),
                       );
@@ -130,9 +264,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  // =====================
-  // BARRA DE BÚSQUEDA
-  // =====================
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -148,151 +279,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
             borderSide: BorderSide.none,
           ),
         ),
-      ),
-    );
-  }
-
-  // =====================
-  // ELIMINAR PRODUCTO
-  // =====================
-  void _showDeleteDialog(int? id, String? name) {
-    if (id == null) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("¿Eliminar producto?"),
-        content: Text(
-          "Estás a punto de borrar '$name'. "
-          "Esta acción no se puede deshacer.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: () async {
-              await DatabaseHelper.instance.deleteProduct(id);
-
-              Navigator.pop(context);
-              setState(() {});
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("'$name' ha sido eliminado"),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              "ELIMINAR",
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =====================
-  // Procesar Ventas
-  // =====================
-  Future<void> processSale(
-    List<Map<String, dynamic>> cart,
-    double total,
-  ) async {
-    final db = await DatabaseHelper.instance.database;
-
-    await db.transaction((txn) async {
-      int saleId = await txn.insert('sales', {
-        'date': DateTime.now().toIso8601String(),
-        'total': total,
-        'status': 'PAID',
-        'item_count': cart.length,
-      });
-
-      for (var item in cart) {
-        await txn.insert('sale_items', {
-          'sale_id': saleId,
-          'product_id': item['id'],
-          'quantity': item['qty'],
-          'price_at_sale': item['price'],
-        });
-
-        await txn.rawUpdate(
-          'UPDATE products SET stock = stock - ? WHERE id = ?',
-          [item['qty'], item['id']],
-        );
-      }
-    });
-
-    setState(() {});
-  }
-
-  // =====================
-  // AGREGAR PRODUCTO
-  // =====================
-  void _showAddProductDialog() {
-    final nameController = TextEditingController();
-    final priceController = TextEditingController();
-    final stockController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Nuevo Producto"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: "Nombre"),
-            ),
-            TextField(
-              controller: priceController,
-              decoration: const InputDecoration(labelText: "Precio"),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: stockController,
-              decoration: const InputDecoration(labelText: "Stock"),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                await DatabaseHelper.instance.insertProduct(
-                  nameController.text,
-                  "General",
-                  double.tryParse(priceController.text) ?? 0.0,
-                  int.tryParse(stockController.text) ?? 0,
-                );
-
-                Navigator.pop(context);
-                setState(() {});
-              }
-            },
-            child: const Text("Guardar"),
-          ),
-        ],
       ),
     );
   }
