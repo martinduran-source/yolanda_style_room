@@ -67,18 +67,16 @@ class DatabaseHelper {
   /// LÓGICA DE INVENTARIO
   /// ===========================================================
 
-  // BUSCAR: Solo muestra productos activos (incluye stock 0)
   Future<List<Map<String, dynamic>>> searchProducts(String query) async {
     final db = await instance.database;
     return await db.query(
       'products',
       where: 'name LIKE ? AND is_active = 1',
       whereArgs: ['%$query%'],
-      orderBy: 'stock DESC', // Opcional: primero los que tienen stock
+      orderBy: 'stock DESC',
     );
   }
 
-  // INSERTAR O ACTUALIZAR: Suma stock si el nombre ya existe
   Future<void> insertProduct(
     String name,
     String category,
@@ -99,11 +97,7 @@ class DatabaseHelper {
       int currentStock = existing.first['stock'];
       await db.update(
         'products',
-        {
-          'stock': currentStock + stock,
-          'price': price,
-          'is_active': 1, // Reactivamos si estaba borrado
-        },
+        {'stock': currentStock + stock, 'price': price, 'is_active': 1},
         where: 'id = ?',
         whereArgs: [id],
       );
@@ -118,7 +112,28 @@ class DatabaseHelper {
     }
   }
 
-  // RESTAR STOCK: Útil para ajustes manuales o mermas
+  Future<int> updateProduct(
+    int id,
+    String name,
+    String category,
+    double price,
+    int stock,
+  ) async {
+    final db = await instance.database;
+    return await db.update(
+      'products',
+      {
+        'name': name.trim(),
+        'category': category,
+        'price': price,
+        'stock': stock,
+        'is_active': 1,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<void> decreaseStock(int productId, int quantityToRemove) async {
     final db = await instance.database;
     await db.rawUpdate(
@@ -127,7 +142,6 @@ class DatabaseHelper {
     );
   }
 
-  // ELIMINADO LÓGICO: Oculta el producto pero mantiene historial
   Future<int> deleteProduct(int id) async {
     final db = await instance.database;
     return await db.update(
@@ -138,19 +152,18 @@ class DatabaseHelper {
     );
   }
 
-  // NUEVO: Marcar producto como agotado sin desactivarlo
   Future<int> markAsOutOfStock(int id) async {
     final db = await instance.database;
     return await db.update(
       'products',
-      {'stock': 0}, // Solo bajamos el stock a 0
+      {'stock': 0},
       where: 'id = ?',
       whereArgs: [id],
     );
   }
 
   /// ===========================================================
-  /// VENTAS Y GRÁFICAS
+  /// VENTAS Y GRÁFICAS (CORREGIDO)
   /// ===========================================================
 
   Future<void> processSale(
@@ -167,7 +180,6 @@ class DatabaseHelper {
       });
 
       for (var item in cart) {
-        // Validación de stock antes de descontar
         final currentStock = Sqflite.firstIntValue(
           await txn.rawQuery('SELECT stock FROM products WHERE id = ?', [
             item['id'],
@@ -192,11 +204,9 @@ class DatabaseHelper {
       }
     });
   }
-  // MÉTODOS PARA OBTENER PRODUCTOS (PARA LA SELECCIÓN RÁPIDA)
 
   Future<List<Map<String, dynamic>>> getProducts() async {
     final db = await instance.database;
-    // Traemos solo los productos activos para vender
     return await db.query(
       'products',
       where: 'is_active = 1',
@@ -204,7 +214,7 @@ class DatabaseHelper {
     );
   }
 
-  // HISTORIAL: con detalle de productos vendidos
+  // --- ESTA ES LA FUNCIÓN QUE FALTABA ---
   Future<List<Map<String, dynamic>>> getSalesHistory() async {
     final db = await instance.database;
     return await db.rawQuery('''
@@ -218,70 +228,81 @@ class DatabaseHelper {
     ''');
   }
 
-  // GRÁFICA: Número de ventas por hora o día
   Future<List<FlSpot>> getSalesSpots(String filter) async {
     final db = await instance.database;
     String query = "";
 
-    if (filter == 'Hoy' || filter == 'Día') {
+    if (filter == 'Día' || filter == 'Hoy') {
       query = """
-        SELECT STRFTIME('%H', date) as x, COUNT(id) as y 
+        SELECT STRFTIME('%H', date, 'localtime') as x, SUM(total) as y 
         FROM sales 
-        WHERE DATE(date) = DATE('now') 
-        GROUP BY x 
-        ORDER BY x ASC
+        WHERE DATE(date, 'localtime') = DATE('now', 'localtime') 
+        GROUP BY x ORDER BY x ASC
+      """;
+    } else if (filter == 'Semana') {
+      query = """
+        SELECT STRFTIME('%d', date, 'localtime') as x, SUM(total) as y 
+        FROM sales 
+        WHERE DATE(date, 'localtime') >= DATE('now', 'localtime', '-7 days') 
+        GROUP BY x ORDER BY date ASC
       """;
     } else {
       query = """
-        SELECT STRFTIME('%d', date) as x, COUNT(id) as y 
+        SELECT STRFTIME('%d', date, 'localtime') as x, SUM(total) as y 
         FROM sales 
-        WHERE STRFTIME('%m', date) = STRFTIME('%m', 'now') 
-        GROUP BY x 
-        ORDER BY x ASC
+        WHERE STRFTIME('%m', date, 'localtime') = STRFTIME('%m', 'now', 'localtime') 
+        AND STRFTIME('%Y', date, 'localtime') = STRFTIME('%Y', 'now', 'localtime')
+        GROUP BY x ORDER BY x ASC
       """;
     }
 
     final result = await db.rawQuery(query);
-    if (result.isEmpty) return [];
-
-    return result.map((data) {
-      return FlSpot(
-        double.parse(data['x'].toString()),
-        (data['y'] as num).toDouble(),
-      );
-    }).toList();
+    return result
+        .map(
+          (data) => FlSpot(
+            double.parse(data['x'].toString()),
+            (data['y'] as num).toDouble(),
+          ),
+        )
+        .toList();
   }
 
-  // Dentro de tu clase DatabaseHelper
-  Future<int> updateProduct(
-    int id,
-    String name,
-    String category,
-    double price,
-    int stock,
+  Future<List<Map<String, dynamic>>> getFilteredSalesHistory(
+    String filter,
   ) async {
     final db = await instance.database;
-    return await db.update(
-      'products', // Asegúrate que este sea el nombre de tu tabla
-      {'name': name, 'category': category, 'price': price, 'stock': stock},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
+    String condition = "";
 
-  // Método para insertar una venta y obtener su ID
+    if (filter == 'Día' || filter == 'Hoy') {
+      condition = "DATE(s.date, 'localtime') = DATE('now', 'localtime')";
+    } else if (filter == 'Semana') {
+      condition =
+          "DATE(s.date, 'localtime') >= DATE('now', 'localtime', '-7 days')";
+    } else {
+      condition =
+          "STRFTIME('%m', s.date, 'localtime') = STRFTIME('%m', 'now', 'localtime') "
+          "AND STRFTIME('%Y', s.date, 'localtime') = STRFTIME('%Y', 'now', 'localtime')";
+    }
+
+    return await db.rawQuery('''
+      SELECT s.id, s.date, s.total, s.item_count,
+      GROUP_CONCAT(p.name || ' x' || si.quantity, ', ') AS products_summary
+      FROM sales s
+      JOIN sale_items si ON s.id = si.sale_id
+      JOIN products p ON si.product_id = p.id
+      WHERE $condition
+      GROUP BY s.id
+      ORDER BY s.date DESC
+    ''');
+  }
 
   Future<int> insertSale(Map<String, dynamic> row) async {
     final db = await instance.database;
-    // 'sales' debe ser el nombre de tu tabla de ventas
     return await db.insert('sales', row);
   }
 
-  // Método para insertar un producto específico dentro de una venta
-
   Future<int> insertSaleItem(Map<String, dynamic> row) async {
     final db = await instance.database;
-    // 'sale_items' debe ser el nombre de tu tabla de detalles
     return await db.insert('sale_items', row);
   }
 }
