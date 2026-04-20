@@ -16,26 +16,20 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
   final Color lightBeige = const Color(0xFFF9F5F0);
 
   String selectedFilter = 'Mes';
-  double totalSales = 0.0;
 
-  // 1. Obtener datos para la Gráfica
-  Future<List<FlSpot>> _getSpots() async {
+  // Consolidamos la carga de datos para evitar desincronización
+  Future<Map<String, dynamic>> _fetchReportData() async {
     final spots = await DatabaseHelper.instance.getSalesSpots(selectedFilter);
-    double currentTotal = 0.0;
-    for (var spot in spots) {
-      currentTotal += spot.y;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && totalSales != currentTotal) {
-        setState(() => totalSales = currentTotal);
-      }
-    });
-    return spots;
-  }
+    final history = await DatabaseHelper.instance.getFilteredSalesHistory(
+      selectedFilter,
+    );
 
-  // 2. Obtener datos para la Lista de Detalles
-  Future<List<Map<String, dynamic>>> _getHistoryDetails() {
-    return DatabaseHelper.instance.getFilteredSalesHistory(selectedFilter);
+    double total = 0.0;
+    for (var spot in spots) {
+      total += spot.y;
+    }
+
+    return {'spots': spots, 'history': history, 'total': total};
   }
 
   @override
@@ -51,7 +45,10 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
           children: [
             Text(
               "YOLANDA'S STYLE ROOM",
-              style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 18),
+              style: GoogleFonts.playfairDisplay(
+                color: Colors.white,
+                fontSize: 18,
+              ),
             ),
             const Text(
               "Reportes de Ventas",
@@ -70,115 +67,136 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
             topRight: Radius.circular(30),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              _buildFilterSelector(),
-              const SizedBox(height: 15),
-              _buildSummaryCard(),
-              const SizedBox(height: 20),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: _buildFilterSelector(),
+            ),
+            Expanded(
+              // ValueKey garantiza que el FutureBuilder se reinicie al cambiar el filtro
+              child: FutureBuilder<Map<String, dynamic>>(
+                key: ValueKey(selectedFilter),
+                future: _fetchReportData(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-              // --- LA GRÁFICA DE BARRAS ---
-              SizedBox(
-                height: 200, // Ajustamos la altura para que la gráfica se vea bien
-                child: FutureBuilder<List<FlSpot>>(
-                  future: _getSpots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return Center(child: Text("Sin datos para graficar", style: TextStyle(color: primaryNavy.withOpacity(0.5))));
-                    }
-                    
-                    // CAMBIO A BAR CHART
-                    return BarChart(_mainBarData(snapshot.data!));
-                  },
-                ),
+                  if (snapshot.hasError || !snapshot.hasData) {
+                    return _buildEmptyState("Error al cargar datos");
+                  }
+
+                  final data = snapshot.data!;
+                  final List<FlSpot> spots = data['spots'];
+                  final List<Map<String, dynamic>> history = data['history'];
+                  final double totalSales = data['total'];
+
+                  return ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      _buildSummaryCard(totalSales),
+                      const SizedBox(height: 25),
+
+                      // Gráfica de Ventas
+                      SizedBox(
+                        height: 200,
+                        child: spots.isEmpty
+                            ? _buildEmptyState("Sin datos para graficar")
+                            : BarChart(_mainBarData(spots)),
+                      ),
+
+                      const SizedBox(height: 30),
+                      Text(
+                        "Detalle de Productos Vendidos",
+                        style: GoogleFonts.oswald(
+                          fontSize: 18,
+                          color: primaryNavy,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      history.isEmpty
+                          ? _buildEmptyState("Sin ventas en este periodo")
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: history.length,
+                              itemBuilder: (context, index) =>
+                                  _buildHistoryItem(history[index]),
+                            ),
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // --- TÍTULO DE DETALLES ---
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Detalle de Productos Vendidos",
-                  style: GoogleFonts.oswald(
-                    fontSize: 18,
-                    color: primaryNavy,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
+  Widget _buildHistoryItem(Map<String, dynamic> item) {
+    DateTime date = DateTime.parse(item['date']);
+    String formattedDate =
+        "${date.day}/${date.month} - ${date.hour}:${date.minute.toString().padLeft(2, '0')} hrs";
 
-              // --- LISTA DE PRODUCTOS VENDIDOS ---
-              Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _getHistoryDetails(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return Center(child: Text("Sin ventas en este periodo", style: TextStyle(color: primaryNavy.withOpacity(0.5))));
-                    }
-
-                    final history = snapshot.data!;
-                    return ListView.builder(
-                      itemCount: history.length,
-                      itemBuilder: (context, index) {
-                        final item = history[index];
-                        // Formatear la fecha
-                        DateTime date = DateTime.parse(item['date']);
-                        String formattedDate = "${date.day}/${date.month} - ${date.hour}:${date.minute.toString().padLeft(2, '0')} hrs";
-
-                        return Card(
-                          elevation: 0,
-                          color: Colors.white,
-                          margin: const EdgeInsets.only(bottom: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: accentGold.withOpacity(0.2),
-                              child: Icon(Icons.shopping_bag, color: accentGold, size: 20),
-                            ),
-                            title: Text(
-                              item['products_summary'] ?? 'Producto eliminado',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                            subtitle: Text(
-                              formattedDate,
-                              style: TextStyle(color: primaryNavy.withOpacity(0.5), fontSize: 11),
-                            ),
-                            trailing: Text(
-                              "\$${(item['total'] as num).toStringAsFixed(2)}",
-                              style: TextStyle(color: primaryNavy, fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: accentGold.withOpacity(0.2),
+          child: Icon(Icons.shopping_bag, color: accentGold, size: 20),
+        ),
+        title: Text(
+          item['products_summary'] ?? 'Producto sin nombre',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        ),
+        subtitle: Text(
+          formattedDate,
+          style: TextStyle(color: primaryNavy.withOpacity(0.5), fontSize: 11),
+        ),
+        trailing: Text(
+          "\$${(item['total'] as num).toStringAsFixed(2)}",
+          style: TextStyle(
+            color: primaryNavy,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(
+          message,
+          style: TextStyle(color: primaryNavy.withOpacity(0.4)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(double total) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: primaryNavy.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))
+          BoxShadow(
+            color: primaryNavy.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
         ],
       ),
       child: Column(
@@ -188,8 +206,12 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
             style: TextStyle(color: primaryNavy.withOpacity(0.6), fontSize: 14),
           ),
           Text(
-            "\$${totalSales.toStringAsFixed(2)}",
-            style: GoogleFonts.oswald(color: primaryNavy, fontSize: 28, fontWeight: FontWeight.bold),
+            "\$${total.toStringAsFixed(2)}",
+            style: GoogleFonts.oswald(
+              color: primaryNavy,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -197,89 +219,65 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
   }
 
   Widget _buildFilterSelector() {
-    return SegmentedButton<String>(
-      segments: const [
-        ButtonSegment(value: 'Día', label: Text('Hoy')),
-        ButtonSegment(value: 'Semana', label: Text('Semana')),
-        ButtonSegment(value: 'Mes', label: Text('Mes')),
-      ],
-      selected: {selectedFilter},
-      onSelectionChanged: (newSelection) {
-        setState(() {
-          selectedFilter = newSelection.first;
-          totalSales = 0.0;
-        });
-      },
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) return accentGold;
-          return Colors.white;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) return Colors.white;
-          return primaryNavy;
-        }),
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'Día', label: Text('Hoy')),
+          ButtonSegment(value: 'Semana', label: Text('Semana')),
+          ButtonSegment(value: 'Mes', label: Text('Mes')),
+        ],
+        selected: {selectedFilter},
+        onSelectionChanged: (newSelection) {
+          setState(() => selectedFilter = newSelection.first);
+        },
+        style: SegmentedButton.styleFrom(
+          backgroundColor: Colors.white,
+          selectedBackgroundColor: accentGold,
+          selectedForegroundColor: Colors.white,
+          foregroundColor: primaryNavy,
+        ),
       ),
     );
   }
 
-  // --- NUEVA CONFIGURACIÓN PARA GRÁFICA DE BARRAS ---
   BarChartData _mainBarData(List<FlSpot> spots) {
-    // Convertir FlSpots en BarChartGroups (Las barras)
-    List<BarChartGroupData> barGroups = spots.map((spot) {
-      return BarChartGroupData(
-        x: spot.x.toInt(),
-        barRods: [
-          BarChartRodData(
-            toY: spot.y,
-            color: accentGold,
-            width: selectedFilter == 'Mes' ? 8 : 14, // Barras más delgadas si es el mes completo
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(4),
-              topRight: Radius.circular(4),
-            ),
-          ),
-        ],
-      );
-    }).toList();
-
     return BarChartData(
       alignment: BarChartAlignment.spaceAround,
+      maxY: spots.isEmpty ? 10 : null,
       barTouchData: BarTouchData(
         touchTooltipData: BarTouchTooltipData(
           getTooltipColor: (group) => primaryNavy.withOpacity(0.9),
           getTooltipItem: (group, groupIndex, rod, rodIndex) {
-            String time = "";
-            if (selectedFilter == 'Día') {
-              time = "${group.x}:00 hrs";
-            } else if (selectedFilter == 'Semana') {
-              time = "Día ${group.x}";
-            } else {
-              time = "Día ${group.x}";
-            }
-            
+            String time = selectedFilter == 'Día'
+                ? "${group.x.toInt()}:00h"
+                : "Día ${group.x.toInt()}";
             return BarTooltipItem(
-              "$time\nGenerado: \$${rod.toY.toStringAsFixed(2)}",
-              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              "$time\n\$${rod.toY.toStringAsFixed(2)}",
+              const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             );
           },
         ),
       ),
-      gridData: FlGridData(
-        show: true,
-        drawVerticalLine: false,
-        getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
-      ),
       titlesData: FlTitlesData(
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         leftTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 40,
+            reservedSize: 35,
             getTitlesWidget: (value, meta) => Text(
               "\$${value.toInt()}",
-              style: TextStyle(color: primaryNavy.withOpacity(0.6), fontSize: 10),
+              style: TextStyle(
+                color: primaryNavy.withOpacity(0.6),
+                fontSize: 9,
+              ),
             ),
           ),
         ),
@@ -287,25 +285,47 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
           sideTitles: SideTitles(
             showTitles: true,
             getTitlesWidget: (value, meta) {
-              String text = "";
-              if (selectedFilter == 'Día') {
-                text = "${value.toInt()}h";
-              } else if (selectedFilter == 'Semana') {
-                text = "Día ${value.toInt()}";
-              } else {
-                text = value.toInt().toString();
-              }
-              
-              return Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(text, style: TextStyle(color: primaryNavy, fontSize: 9, fontWeight: FontWeight.bold)),
+              String text = selectedFilter == 'Día'
+                  ? "${value.toInt()}h"
+                  : "${value.toInt()}";
+              return SideTitleWidget(
+                meta: meta,
+                space: 8,
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: primaryNavy,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               );
             },
           ),
         ),
       ),
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        getDrawingHorizontalLine: (value) =>
+            FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1),
+      ),
       borderData: FlBorderData(show: false),
-      barGroups: barGroups,
+      barGroups: spots.map((spot) {
+        return BarChartGroupData(
+          x: spot.x.toInt(),
+          barRods: [
+            BarChartRodData(
+              toY: spot.y,
+              color: accentGold,
+              width: selectedFilter == 'Mes' ? 8 : 16,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 }

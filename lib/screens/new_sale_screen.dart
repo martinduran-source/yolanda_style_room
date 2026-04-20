@@ -23,14 +23,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   @override
   void initState() {
     super.initState();
-    // CORRECCIÓN: Inicializamos el Future inmediatamente para evitar el LateInitializationError
     _availableProducts = DatabaseHelper.instance.getProducts();
-
-    // Llamamos a la carga de datos de muestra en segundo plano
     _initData();
   }
 
-  // Carga los 17 productos y luego refresca la lista
   Future<void> _initData() async {
     await loadSampleProducts();
     _refreshProducts();
@@ -93,72 +89,67 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: primaryNavy,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(
-          "NUEVA VENTA",
-          style: GoogleFonts.oswald(color: Colors.white),
+    return GestureDetector(
+      // Mejora: Cierra el teclado al tocar fuera de un TextField
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: primaryNavy,
+        // Mejora: Evita que el teclado empuje y deforme el diseño
+        resizeToAvoidBottomInset: false,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          title: Text(
+            "NUEVA VENTA",
+            style: GoogleFonts.oswald(color: Colors.white),
+          ),
         ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: lightBeige,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(30),
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: lightBeige,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: Column(
+            children: [
+              _buildSearchBar(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Selección rápida",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                 ),
               ),
-              child: Column(
-                children: [
-                  _buildSearchBar(),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "Selección rápida",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
+              _buildAvailableProductsList(),
+              const Divider(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Carrito",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  _buildAvailableProductsList(),
-                  const Divider(),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "Carrito",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(child: _buildCartList()),
-                  _buildCheckoutSection(),
-                ],
+                ),
               ),
-            ),
+              // El carrito ocupa el espacio flexible central
+              Expanded(child: _buildCartList()),
+              _buildCheckoutSection(),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildAvailableProductsList() {
     return SizedBox(
-      height: 120,
+      height: 125,
       child: FutureBuilder<List<Map<String, dynamic>>>(
         future: _availableProducts,
         builder: (context, snapshot) {
@@ -176,58 +167,58 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             itemBuilder: (context, index) {
               final p = products[index];
               final bool hasStock = (p['stock'] ?? 0) > 0;
+
               return GestureDetector(
                 onTap: () => _addProductToCart(p),
-                child: Container(
-                  width: 100,
-                  margin: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: hasStock
-                          ? Colors.transparent
-                          : Colors.red.withOpacity(0.3),
+                child: Opacity(
+                  // Mejora: Se ve opaco si no hay stock
+                  opacity: hasStock ? 1.0 : 0.5,
+                  child: Container(
+                    width: 105,
+                    margin: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black12, blurRadius: 4),
+                      ],
                     ),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 4),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.inventory_2,
-                        color: hasStock ? accentGold : Colors.grey,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          p['name'],
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2,
+                          color: hasStock ? accentGold : Colors.grey,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            p['name'],
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      Text(
-                        "\$${p['price']}",
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.green,
+                        Text(
+                          "\$${p['price']}",
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.green,
+                          ),
                         ),
-                      ),
-                      Text(
-                        "Stock: ${p['stock']}",
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: hasStock ? Colors.black54 : Colors.red,
+                        Text(
+                          "Stock: ${p['stock']}",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: hasStock ? Colors.black54 : Colors.red,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -290,11 +281,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               item['name'],
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            subtitle: Text(
-              "\$${item['price'].toStringAsFixed(2)} c/u | Stock: ${item['maxStock']}",
-            ),
+            subtitle: Text("\$${item['price'].toStringAsFixed(2)} c/u"),
             trailing: SizedBox(
-              width: 140,
+              width: 130,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -316,10 +305,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                   ),
                   Text(
                     "${item['qty']}",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   IconButton(
                     icon: Icon(
@@ -327,7 +313,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                       color: canAddMore ? Colors.green : Colors.grey,
                     ),
                     onPressed: !canAddMore
-                        ? () => _showWarning("Máximo alcanzado")
+                        ? () => _showWarning("Stock máximo alcanzado")
                         : () {
                             setState(() {
                               item['qty'] += 1;
@@ -346,13 +332,14 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
   Widget _buildCheckoutSection() {
     return Container(
-      padding: const EdgeInsets.all(25),
+      padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -368,10 +355,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 15),
           SizedBox(
             width: double.infinity,
-            height: 55,
+            height: 50,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryNavy,
@@ -390,9 +377,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                         if (mounted) {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Venta completada con éxito"),
-                            ),
+                            const SnackBar(content: Text("¡Venta completada!")),
                           );
                         }
                       } catch (e) {
@@ -403,7 +388,6 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                 "COMPLETAR VENTA",
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -415,9 +399,18 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   }
 }
 
-// FUNCIÓN DE CARGA DE DATOS
+// FUNCIÓN DE CARGA DE DATOS CORREGIDA
 Future<void> loadSampleProducts() async {
   final db = DatabaseHelper.instance;
+
+  // 1. Verificamos si ya existen productos en la base de datos
+  final existingProducts = await db.getProducts();
+
+  // 2. Si la lista NO está vacía, salimos de la función para no duplicar datos
+  if (existingProducts.isNotEmpty) {
+    return;
+  }
+
   final List<Map<String, dynamic>> sampleProducts = [
     {
       'name': 'Vestido Seda Rojo',
@@ -465,7 +458,7 @@ Future<void> loadSampleProducts() async {
       'name': 'Cinturón Oro Rosa',
       'cat': 'Accesorios',
       'price': 15.0,
-      'stock': 3,
+      'stock': 3, // El culpable de los "3" productos fantasma
     },
     {
       'name': 'Bufanda Cachemira',
