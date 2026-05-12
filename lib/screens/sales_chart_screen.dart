@@ -222,8 +222,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
       ),
     );
   }
-
-  // --- NUEVA CONFIGURACIÓN PARA GRÁFICA DE BARRAS ---
+// --- NUEVA CONFIGURACIÓN PARA GRÁFICA DE BARRAS ---
   BarChartData _mainBarData(List<FlSpot> spots) {
     // Convertir FlSpots en BarChartGroups (Las barras)
     List<BarChartGroupData> barGroups = spots.map((spot) {
@@ -233,7 +232,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
           BarChartRodData(
             toY: spot.y,
             color: accentGold,
-            width: selectedFilter == 'Mes' ? 8 : 14, // Barras más delgadas si es el mes completo
+            width: selectedFilter == 'Mes' ? 8 : 14, 
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(4),
               topRight: Radius.circular(4),
@@ -265,10 +264,12 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
           },
         ),
       ),
+      // Mantenemos solo una instancia de gridData
       gridData: FlGridData(
         show: true,
         drawVerticalLine: false,
-        getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
+        getDrawingHorizontalLine: (value) =>
+            FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1),
       ),
       titlesData: FlTitlesData(
         rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -276,7 +277,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
         leftTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 40,
+            reservedSize: 35,
             getTitlesWidget: (value, meta) => Text(
               "\$${value.toInt()}",
               style: TextStyle(color: primaryNavy.withOpacity(0.6), fontSize: 10),
