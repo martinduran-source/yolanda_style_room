@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../database/database_helper.dart';
+import '../services/supabase_service.dart'; // Importamos el nuevo servicio
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -14,21 +14,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
   final Color accentGold = const Color(0xFFB89352);
   final Color lightBeige = const Color(0xFFF9F5F0);
 
+  // Instanciamos el servicio de Supabase
+  final SupabaseService _supabaseService = SupabaseService();
   String _searchQuery = '';
 
   void _refresh() {
     setState(() {});
   }
-   void _deleteProduct(int id, String name) {
+
+  // --- MÉTODO PARA ELIMINAR PRODUCTO (SUPABASE) ---
+  void _deleteProduct(int id, String name) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          "¿Eliminar producto?", 
-          style: GoogleFonts.oswald(color: Colors.red)
+          "¿Eliminar producto?",
+          style: GoogleFonts.oswald(color: Colors.red),
         ),
-        content: Text("¿Estás seguro de que deseas eliminar '$name'? Esta acción no se puede deshacer."),
+        content: Text("¿Estás seguro de que deseas eliminar '$name'?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -37,24 +41,29 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              // Llama al método de la base de datos que agregamos antes
-              await DatabaseHelper.instance.deleteProduct(id); 
+              // Llamada a Supabase
+              await _supabaseService.eliminarRegistro('productos', id);
               if (mounted) {
-                Navigator.pop(context); // Cierra el diálogo
-                _refresh(); // Refresca la lista
+                Navigator.pop(context);
+                _refresh();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Producto eliminado")),
+                  const SnackBar(
+                    content: Text("Producto eliminado de la nube"),
+                  ),
                 );
               }
             },
-            child: const Text("ELIMINAR", style: TextStyle(color: Colors.white)),
+            child: const Text(
+              "ELIMINAR",
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- MÉTODO PARA EDITAR PRODUCTO ---
+  // --- MÉTODO PARA EDITAR PRODUCTO (SUPABASE) ---
   void _showEditProductDialog(Map<String, dynamic> product) {
     final nameController = TextEditingController(text: product['name']);
     final priceController = TextEditingController(
@@ -63,9 +72,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final stockController = TextEditingController(
       text: product['stock'].toString(),
     );
-
-    // --- MÉTODO PARA ELIMINAR PRODUCTO ---
- 
 
     showDialog(
       context: context,
@@ -81,22 +87,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: "Nombre del Producto",
-                ),
+                decoration: const InputDecoration(labelText: "Nombre"),
               ),
-              const SizedBox(height: 10),
               TextField(
                 controller: priceController,
                 decoration: const InputDecoration(
-                  labelText: "Precio (\$)",
+                  labelText: "Precio",
                   prefixText: "\$ ",
                 ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
+                keyboardType: TextInputType.number,
               ),
-              const SizedBox(height: 10),
               TextField(
                 controller: stockController,
                 decoration: const InputDecoration(labelText: "Stock Actual"),
@@ -108,32 +108,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text("CANCELAR", style: TextStyle(color: Colors.grey[600])),
+            child: const Text("CANCELAR"),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryNavy,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: primaryNavy),
             onPressed: () async {
-              await DatabaseHelper.instance.updateProduct(
-                product['id'],
-                nameController.text,
-                product['category'] ?? 'General',
-                double.tryParse(priceController.text) ?? 0.0,
-                int.tryParse(stockController.text) ?? 0,
-              );
-
+              // Actualización en Supabase
+              await _supabaseService.actualizarProducto(product['id'], {
+                'name': nameController.text,
+                'price': double.tryParse(priceController.text) ?? 0.0,
+                'stock': int.tryParse(stockController.text) ?? 0,
+              });
               if (mounted) {
                 Navigator.pop(context);
                 _refresh();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Producto actualizado correctamente"),
-                  ),
-                );
               }
             },
             child: const Text("GUARDAR", style: TextStyle(color: Colors.white)),
@@ -143,7 +131,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  // --- MÉTODO PARA AÑADIR PRODUCTO ---
+  // --- MÉTODO PARA AÑADIR PRODUCTO (SUPABASE) ---
   void _showAddProductDialog() {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
@@ -177,12 +165,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: primaryNavy),
             onPressed: () async {
-              await DatabaseHelper.instance.insertProduct(
-                nameController.text,
-                "General",
-                double.tryParse(priceController.text) ?? 0,
-                int.tryParse(stockController.text) ?? 0,
-              );
+              // Inserción en Supabase
+              await _supabaseService.insertarRegistro('productos', {
+                'name': nameController.text,
+                'price': double.tryParse(priceController.text) ?? 0,
+                'stock': int.tryParse(stockController.text) ?? 0,
+                'category': 'General',
+              });
               Navigator.pop(context);
               _refresh();
             },
@@ -202,11 +191,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
         elevation: 0,
         iconTheme: IconThemeData(color: accentGold),
         title: Text(
-          "INVENTARIO",
+          "INVENTARIO WEB",
           style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.5),
         ),
         actions: [
-          // Mantenemos solo el botón de añadir
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: _showAddProductDialog,
@@ -227,7 +215,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ),
               child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: DatabaseHelper.instance.searchProducts(_searchQuery),
+                // Usamos el servicio de Supabase para buscar
+                future: _supabaseService.getProductos(_searchQuery),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -235,7 +224,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Center(
                       child: Text(
-                        "Sin productos",
+                        "Sin productos en la nube",
                         style: TextStyle(color: primaryNavy.withOpacity(0.5)),
                       ),
                     );
@@ -253,24 +242,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
-                        elevation: isOutOfStock ? 0 : 2,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 5,
-                          ),
                           leading: Icon(Icons.inventory_2, color: accentGold),
                           title: Text(
                             p['name'] ?? 'Sin nombre',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              decoration: isOutOfStock
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
                             isOutOfStock
@@ -280,27 +259,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               color: isOutOfStock ? Colors.red : Colors.black54,
                             ),
                           ),
-                         trailing: Row(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-    IconButton(
-      icon: Icon(
-        Icons.edit_note,
-        color: isOutOfStock ? Colors.grey : accentGold,
-        size: 28,
-      ),
-      onPressed: () => _showEditProductDialog(p),
-    ),
-    IconButton(
-      icon: const Icon(
-        Icons.delete_sweep_outlined,
-        color: Colors.redAccent,
-        size: 28,
-      ),
-      onPressed: () => _deleteProduct(p['id'], p['name'] ?? 'Sin nombre'),
-    ),
-  ],
-),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit_note, color: accentGold),
+                                onPressed: () => _showEditProductDialog(p),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_sweep_outlined,
+                                  color: Colors.redAccent,
+                                ),
+                                onPressed: () =>
+                                    _deleteProduct(p['id'], p['name']),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -320,7 +295,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       child: TextField(
         onChanged: (value) => setState(() => _searchQuery = value),
         decoration: InputDecoration(
-          hintText: "Buscar productos...",
+          hintText: "Buscar en Supabase...",
           prefixIcon: Icon(Icons.search, color: accentGold),
           filled: true,
           fillColor: Colors.white,

@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Credenciales actualizadas de tu proyecto "yolanda_style_room"
+  await Supabase.initialize(
+    url: 'https://maavhpozdwuqzadpwsmb.supabase.co',
+    anonKey: 'sb_publishable_sktDiTDD6-Vep1Tp_NfKtw_2dmvr36k',
+  );
+
   runApp(const MainApp());
 }
 

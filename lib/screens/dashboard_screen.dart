@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// Importaciones de tus pantallas
 import 'history_screen.dart';
 import 'inventory_screen.dart';
 import 'new_sale_screen.dart';
@@ -19,10 +20,7 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           "YOLANDA'S STYLE",
-          style: GoogleFonts.oswald(
-            color: Colors.white,
-            letterSpacing: 2,
-          ),
+          style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 2),
         ),
         backgroundColor: primaryNavy,
         centerTitle: true,
@@ -60,7 +58,7 @@ class DashboardScreen extends StatelessWidget {
                     accentGold,
                     () => _navigateTo(
                       context,
-                      const NewSaleScreen(),
+                      const NewSaleScreen(), // Si esto sigue en rojo, ve a new_sale_screen.dart y cambia el nombre de la clase
                     ),
                   ),
 
@@ -70,10 +68,7 @@ class DashboardScreen extends StatelessWidget {
                     Icons.history,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(
-                      context, 
-                      const HistoryScreen(),
-                    ),
+                    () => _navigateTo(context, const HistoryScreen()),
                   ),
 
                   _buildCard(
@@ -82,10 +77,7 @@ class DashboardScreen extends StatelessWidget {
                     Icons.inventory_2_outlined,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(
-                      context,
-                      const InventoryScreen(),
-                    ),
+                    () => _navigateTo(context, const InventoryScreen()),
                   ),
 
                   _buildCard(
@@ -94,10 +86,7 @@ class DashboardScreen extends StatelessWidget {
                     Icons.bar_chart,
                     primaryNavy,
                     accentGold,
-                    () => _navigateTo(
-                      context,
-                      const SalesChartScreen(),
-                    ),
+                    () => _navigateTo(context, const SalesChartScreen()),
                   ),
                 ],
               ),
@@ -110,10 +99,7 @@ class DashboardScreen extends StatelessWidget {
 
   /// Navegación entre pantallas
   void _navigateTo(BuildContext context, Widget screen) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => screen),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
   }
 
   /// Tarjeta reutilizable del menú
@@ -127,7 +113,6 @@ class DashboardScreen extends StatelessWidget {
   ) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -147,9 +132,7 @@ class DashboardScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 50, color: gold),
-
               const SizedBox(height: 15),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(

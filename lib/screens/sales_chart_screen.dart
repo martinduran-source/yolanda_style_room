@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../database/database_helper.dart';
+import '../services/supabase_service.dart'; // Importamos el servicio de Supabase
 
 class SalesChartScreen extends StatefulWidget {
   const SalesChartScreen({super.key});
@@ -15,19 +15,42 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
   final Color accentGold = const Color(0xFFB89352);
   final Color lightBeige = const Color(0xFFF9F5F0);
 
+  final SupabaseService _supabaseService = SupabaseService();
   String selectedFilter = 'Mes';
 
-  // Consolidamos la carga de datos para evitar desincronización
+  // --- NUEVA LÓGICA DE CARGA DESDE SUPABASE ---
   Future<Map<String, dynamic>> _fetchReportData() async {
-    final spots = await DatabaseHelper.instance.getSalesSpots(selectedFilter);
-    final history = await DatabaseHelper.instance.getFilteredSalesHistory(
-      selectedFilter,
-    );
+    // Obtenemos las ventas filtradas desde nuestro servicio
+    final history = await _supabaseService.getVentasFiltradas(selectedFilter);
 
     double total = 0.0;
-    for (var spot in spots) {
-      total += spot.y;
+    List<FlSpot> spots = [];
+
+    // Procesamos los datos para la gráfica (Agrupación básica por fecha)
+    // Nota: Para una gráfica perfecta, lo ideal es agrupar por día/hora en el servicio
+    Map<int, double> groupedData = {};
+
+    for (var sale in history) {
+      double val = (sale['total'] as num).toDouble();
+      total += val;
+
+      DateTime date = DateTime.parse(sale['created_at']);
+      int key;
+      if (selectedFilter == 'Día') {
+        key = date.hour;
+      } else {
+        key = date.day;
+      }
+      groupedData[key] = (groupedData[key] ?? 0) + val;
     }
+
+    // Convertimos el mapa a una lista de puntos para la gráfica
+    groupedData.forEach((x, y) {
+      spots.add(FlSpot(x.toDouble(), y));
+    });
+
+    // Ordenamos los puntos por el eje X para que la gráfica no se vea desordenada
+    spots.sort((a, b) => a.x.compareTo(b.x));
 
     return {'spots': spots, 'history': history, 'total': total};
   }
@@ -51,7 +74,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
               ),
             ),
             const Text(
-              "Reportes de Ventas",
+              "Reportes de Ventas Cloud",
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
           ],
@@ -74,7 +97,6 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
               child: _buildFilterSelector(),
             ),
             Expanded(
-              // ValueKey garantiza que el FutureBuilder se reinicie al cambiar el filtro
               child: FutureBuilder<Map<String, dynamic>>(
                 key: ValueKey(selectedFilter),
                 future: _fetchReportData(),
@@ -84,7 +106,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
                   }
 
                   if (snapshot.hasError || !snapshot.hasData) {
-                    return _buildEmptyState("Error al cargar datos");
+                    return _buildEmptyState("Error al conectar con Supabase");
                   }
 
                   final data = snapshot.data!;
@@ -97,15 +119,12 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
                     children: [
                       _buildSummaryCard(totalSales),
                       const SizedBox(height: 25),
-
-                      // Gráfica de Ventas
                       SizedBox(
                         height: 200,
                         child: spots.isEmpty
-                            ? _buildEmptyState("Sin datos para graficar")
+                            ? _buildEmptyState("Sin ventas en este periodo")
                             : BarChart(_mainBarData(spots)),
                       ),
-
                       const SizedBox(height: 30),
                       Text(
                         "Detalle de Productos Vendidos",
@@ -116,9 +135,8 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
                         ),
                       ),
                       const SizedBox(height: 15),
-
                       history.isEmpty
-                          ? _buildEmptyState("Sin ventas en este periodo")
+                          ? _buildEmptyState("No hay registros")
                           : ListView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -138,7 +156,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
   }
 
   Widget _buildHistoryItem(Map<String, dynamic> item) {
-    DateTime date = DateTime.parse(item['date']);
+    DateTime date = DateTime.parse(item['created_at']).toLocal();
     String formattedDate =
         "${date.day}/${date.month} - ${date.hour}:${date.minute.toString().padLeft(2, '0')} hrs";
 
@@ -153,7 +171,7 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
           child: Icon(Icons.shopping_bag, color: accentGold, size: 20),
         ),
         title: Text(
-          item['products_summary'] ?? 'Producto sin nombre',
+          item['products_summary'] ?? 'Venta sin detalle',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
         ),
         subtitle: Text(
@@ -171,6 +189,8 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
       ),
     );
   }
+
+  // ... (Los métodos _buildEmptyState, _buildSummaryCard, _buildFilterSelector y _mainBarData se mantienen igual que en tu código original)
 
   Widget _buildEmptyState(String message) {
     return Center(
@@ -228,9 +248,8 @@ class _SalesChartScreenState extends State<SalesChartScreen> {
           ButtonSegment(value: 'Mes', label: Text('Mes')),
         ],
         selected: {selectedFilter},
-        onSelectionChanged: (newSelection) {
-          setState(() => selectedFilter = newSelection.first);
-        },
+        onSelectionChanged: (newSelection) =>
+            setState(() => selectedFilter = newSelection.first),
         style: SegmentedButton.styleFrom(
           backgroundColor: Colors.white,
           selectedBackgroundColor: accentGold,
