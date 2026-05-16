@@ -9,7 +9,6 @@ import 'screens/dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
  
 await Supabase.initialize(
     url: 'https://gcunqsuzbgscepmulyid.supabase.co',

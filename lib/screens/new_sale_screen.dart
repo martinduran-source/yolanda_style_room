@@ -24,13 +24,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   void initState() {
     super.initState();
     _availableProducts = DatabaseHelper.instance.getProducts();
-    _initData();
   }
 
-  Future<void> _initData() async {
-    await loadSampleProducts();
-    _refreshProducts();
-  }
+
 
   void _refreshProducts() {
     if (mounted) {
@@ -39,8 +35,6 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       });
     }
   }
-
-  
 
   void _calculateTotal() {
     double tempTotal = 0;
@@ -92,19 +86,17 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // Mejora: Cierra el teclado al tocar fuera de un TextField
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: primaryNavy,
-        // Mejora: Evita que el teclado empuje y deforme el diseño
         resizeToAvoidBottomInset: false,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           iconTheme: const IconThemeData(color: Colors.white),
           title: Text(
-            "NUEVA VENTA",
-            style: GoogleFonts.oswald(color: Colors.white),
+            "PUNTO DE VENTA",
+            style: GoogleFonts.oswald(color: Colors.white, letterSpacing: 1.5),
           ),
         ),
         body: Container(
@@ -114,126 +106,131 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             color: lightBeige,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
           ),
-          child: Column(
-            children: [
-              _buildSearchBar(),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Selección rápida",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ),
-              _buildAvailableProductsList(),
-              const Divider(),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Carrito",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ),
-              // El carrito ocupa el espacio flexible central
-              Expanded(child: _buildCartList()),
-              _buildCheckoutSection(),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // LÓGICA RESPONSIVA: Si la pantalla es ancha (Web/Desktop), usa pantalla dividida.
+              if (constraints.maxWidth >= 800) {
+                return _buildWebLayout();
+              } else {
+                return _buildMobileLayout();
+              }
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildAvailableProductsList() {
-    return SizedBox(
-      height: 125,
-      child: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _availableProducts,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No hay productos disponibles"));
-          }
-          final products = snapshot.data!;
-          return ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final p = products[index];
-              final bool hasStock = (p['stock'] ?? 0) > 0;
-
-              return GestureDetector(
-                onTap: () => _addProductToCart(p),
-                child: Opacity(
-                  // Mejora: Se ve opaco si no hay stock
-                  opacity: hasStock ? 1.0 : 0.5,
-                  child: Container(
-                    width: 105,
-                    margin: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 4),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+  // ========================================================
+  // LAYOUT PARA WEB Y DESKTOP (Pantalla Dividida)
+  // ========================================================
+  Widget _buildWebLayout() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // PANEL IZQUIERDO: Búsqueda y Cuadrícula de Productos
+          Expanded(
+            flex: 6, // Ocupa el 60% de la pantalla
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSearchBar(),
+                const SizedBox(height: 15),
+                Text(
+                  "Catálogo de Productos",
+                  style: GoogleFonts.oswald(fontSize: 20, color: primaryNavy),
+                ),
+                const SizedBox(height: 10),
+                Expanded(child: _buildProductsView(isWeb: true)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          
+          // PANEL DERECHO: Carrito de Compras
+          Expanded(
+            flex: 4, // Ocupa el 40% de la pantalla
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)
+                ],
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
                       children: [
-                        Icon(
-                          Icons.inventory_2,
-                          color: hasStock ? accentGold : Colors.grey,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            p['name'],
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                        Icon(Icons.shopping_cart_outlined, color: primaryNavy),
+                        const SizedBox(width: 10),
                         Text(
-                          "\$${p['price']}",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.green,
-                          ),
-                        ),
-                        Text(
-                          "Stock: ${p['stock']}",
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: hasStock ? Colors.black54 : Colors.red,
-                          ),
+                          "CARRITO",
+                          style: GoogleFonts.oswald(fontSize: 20, color: primaryNavy),
                         ),
                       ],
                     ),
                   ),
-                ),
-              );
-            },
-          );
-        },
+                  const Divider(height: 1),
+                  Expanded(child: _buildCartList()),
+                  _buildCheckoutSection(isWeb: true),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  // ========================================================
+  // LAYOUT PARA MÓVIL (El diseño original adaptado)
+  // ========================================================
+  Widget _buildMobileLayout() {
+    return Column(
+      children: [
+        _buildSearchBar(),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Selección rápida",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 140,
+          child: _buildProductsView(isWeb: false),
+        ),
+        const Divider(),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Carrito",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+        ),
+        Expanded(child: _buildCartList()),
+        _buildCheckoutSection(isWeb: false),
+      ],
+    );
+  }
+
+  // ========================================================
+  // COMPONENTES REUTILIZABLES
+  // ========================================================
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20).copyWith(bottom: 0),
       child: TextField(
         controller: _searchController,
         onChanged: (value) {
@@ -255,76 +252,177 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     );
   }
 
+  // Lista/Cuadrícula de productos adaptativa
+  Widget _buildProductsView({required bool isWeb}) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _availableProducts,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("No hay productos disponibles"));
+        }
+        final products = snapshot.data!;
+
+        // Si es Web, mostramos una cuadrícula bonita. Si es móvil, la lista horizontal.
+        if (isWeb) {
+          return GridView.builder(
+            padding: const EdgeInsets.only(bottom: 20),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 180, // Ancho máximo de la tarjeta
+              childAspectRatio: 0.85,
+              crossAxisSpacing: 15,
+              mainAxisSpacing: 15,
+            ),
+            itemCount: products.length,
+            itemBuilder: (context, index) => _buildProductCard(products[index]),
+          );
+        } else {
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            itemCount: products.length,
+            itemBuilder: (context, index) => _buildProductCard(products[index], isMobileCard: true),
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildProductCard(Map<String, dynamic> p, {bool isMobileCard = false}) {
+    final bool hasStock = (p['stock'] ?? 0) > 0;
+
+    return GestureDetector(
+      onTap: () => _addProductToCart(p),
+      child: Opacity(
+        opacity: hasStock ? 1.0 : 0.5,
+        child: Container(
+          width: isMobileCard ? 110 : null,
+          margin: isMobileCard ? const EdgeInsets.all(5) : null,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: primaryNavy.withOpacity(0.05)),
+            boxShadow: [
+              BoxShadow(color: primaryNavy.withOpacity(0.05), blurRadius: 10),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: hasStock ? primaryNavy.withOpacity(0.05) : Colors.red.withOpacity(0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.inventory_2,
+                  color: hasStock ? accentGold : Colors.redAccent,
+                  size: isMobileCard ? 24 : 32,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  p['name'],
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, height: 1.1),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                "\$${p['price']}",
+                style: TextStyle(fontSize: 13, color: primaryNavy, fontWeight: FontWeight.w600),
+              ),
+              Text(
+                hasStock ? "Stock: ${p['stock']}" : "AGOTADO",
+                style: TextStyle(
+                  fontSize: 11,
+                  color: hasStock ? Colors.black54 : Colors.red,
+                  fontWeight: hasStock ? FontWeight.normal : FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCartList() {
     if (cartItems.isEmpty) {
       return Center(
-        child: Text(
-          "El carrito está vacío",
-          style: TextStyle(color: primaryNavy.withOpacity(0.5)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shopping_cart_checkout, size: 60, color: primaryNavy.withOpacity(0.2)),
+            const SizedBox(height: 10),
+            Text(
+              "El carrito está vacío",
+              style: TextStyle(color: primaryNavy.withOpacity(0.5)),
+            ),
+          ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       itemCount: cartItems.length,
       itemBuilder: (context, index) {
         final item = cartItems[index];
         final bool canAddMore = item['qty'] < item['maxStock'];
 
         return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
+          elevation: 0,
+          color: primaryNavy.withOpacity(0.03),
+          margin: const EdgeInsets.only(bottom: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
-            title: Text(
-              item['name'],
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+            title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             subtitle: Text("\$${item['price'].toStringAsFixed(2)} c/u"),
-            trailing: SizedBox(
-              width: 130,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.remove_circle_outline,
-                      color: Colors.redAccent,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (item['qty'] > 1) {
-                          item['qty'] -= 1;
-                        } else {
-                          cartItems.removeAt(index);
-                        }
-                        _calculateTotal();
-                      });
-                    },
-                  ),
-                  Text(
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                  onPressed: () {
+                    setState(() {
+                      if (item['qty'] > 1) {
+                        item['qty'] -= 1;
+                      } else {
+                        cartItems.removeAt(index);
+                      }
+                      _calculateTotal();
+                    });
+                  },
+                ),
+                SizedBox(
+                  width: 20,
+                  child: Text(
                     "${item['qty']}",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.add_circle_outline,
-                      color: canAddMore ? Colors.green : Colors.grey,
-                    ),
-                    onPressed: !canAddMore
-                        ? () => _showWarning("Stock máximo alcanzado")
-                        : () {
-                            setState(() {
-                              item['qty'] += 1;
-                              _calculateTotal();
-                            });
-                          },
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.add_circle_outline, color: canAddMore ? Colors.green : Colors.grey),
+                  onPressed: !canAddMore
+                      ? () => _showWarning("Stock máximo alcanzado")
+                      : () {
+                          setState(() {
+                            item['qty'] += 1;
+                            _calculateTotal();
+                          });
+                        },
+                ),
+              ],
             ),
           ),
         );
@@ -332,13 +430,13 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     );
   }
 
-  Widget _buildCheckoutSection() {
+  Widget _buildCheckoutSection({required bool isWeb}) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      decoration: BoxDecoration(
+        color: isWeb ? Colors.transparent : Colors.white,
+        borderRadius: isWeb ? null : const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: isWeb ? null : [const BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -346,11 +444,11 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("TOTAL", style: GoogleFonts.oswald(fontSize: 20)),
+              Text("TOTAL", style: GoogleFonts.oswald(fontSize: 22, color: primaryNavy)),
               Text(
                 "\$${totalSale.toStringAsFixed(2)}",
                 style: GoogleFonts.oswald(
-                  fontSize: 24,
+                  fontSize: 28,
                   color: accentGold,
                   fontWeight: FontWeight.bold,
                 ),
@@ -360,7 +458,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           const SizedBox(height: 15),
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 55,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryNavy,
@@ -368,30 +466,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              onPressed: cartItems.isEmpty
-                  ? null
-                  : () async {
-                      try {
-                        await DatabaseHelper.instance.processSale(
-                          cartItems,
-                          totalSale,
-                        );
-                        if (mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("¡Venta completada!")),
-                          );
-                        }
-                      } catch (e) {
-                        _showWarning(e.toString());
-                      }
-                    },
+              onPressed: cartItems.isEmpty ? null : _procesarVenta,
               child: const Text(
                 "COMPLETAR VENTA",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ),
@@ -399,121 +477,35 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       ),
     );
   }
-}
 
-// FUNCIÓN DE CARGA DE DATOS CORREGIDA
-Future<void> loadSampleProducts() async {
-  final db = DatabaseHelper.instance;
+  // --- Lógica de Supabase migrada de tu código anterior ---
+  Future<void> _procesarVenta() async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
-  // 1. Verificamos si ya existen productos en la base de datos
-  final existingProducts = await db.getProducts();
+      await DatabaseHelper.instance.processSale(cartItems, totalSale);
 
-  // 2. Si la lista NO está vacía, salimos de la función para no duplicar datos
-  if (existingProducts.isNotEmpty) {
-    return;
-  }
-
-  final List<Map<String, dynamic>> sampleProducts = [
-    {
-      'name': 'Vestido Seda Rojo',
-      'cat': 'Vestidos',
-      'price': 150.0,
-      'stock': 15,
-    },
-    {
-      'name': 'Pantalón Jean Clásico',
-      'cat': 'Pantalones',
-      'price': 45.0,
-      'stock': 20,
-    },
-    {
-      'name': 'Blusa Encaje Blanca',
-      'cat': 'Blusas',
-      'price': 35.0,
-      'stock': 12,
-    },
-    {
-      'name': 'Chaqueta Cuero Negra',
-      'cat': 'Abrigos',
-      'price': 85.0,
-      'stock': 5,
-    },
-    {
-      'name': 'Falda Plisada Beige',
-      'cat': 'Faldas',
-      'price': 40.0,
-      'stock': 10,
-    },
-    {
-      'name': 'Top Deportivo Neon',
-      'cat': 'Deportiva',
-      'price': 25.0,
-      'stock': 2,
-    },
-    {
-      'name': 'Vestido Cóctel Negro',
-      'cat': 'Vestidos',
-      'price': 120.0,
-      'stock': 1,
-    },
-    {
-      'name': 'Cinturón Oro Rosa',
-      'cat': 'Accesorios',
-      'price': 15.0,
-      'stock': 3, // El culpable de los "3" productos fantasma
-    },
-    {
-      'name': 'Bufanda Cachemira',
-      'cat': 'Accesorios',
-      'price': 30.0,
-      'stock': 0,
-    },
-    {'name': 'Sandalias Verano', 'cat': 'Calzado', 'price': 28.0, 'stock': 0},
-    {
-      'name': 'Camiseta Algodón XL',
-      'cat': 'Básicos',
-      'price': 18.0,
-      'stock': 25,
-    },
-    {
-      'name': 'Short Mezclilla',
-      'cat': 'Pantalones',
-      'price': 32.0,
-      'stock': 14,
-    },
-    {'name': 'Suéter Lana Gris', 'cat': 'Abrigos', 'price': 55.0, 'stock': 8},
-    {
-      'name': 'Vestido Playero Azul',
-      'cat': 'Vestidos',
-      'price': 65.0,
-      'stock': 11,
-    },
-    {
-      'name': 'Gorra Bordada Style',
-      'cat': 'Accesorios',
-      'price': 20.0,
-      'stock': 7,
-    },
-    {
-      'name': 'Leggins High Waist',
-      'cat': 'Deportiva',
-      'price': 38.0,
-      'stock': 18,
-    },
-    {
-      'name': 'Cardigan Largo Rosa',
-      'cat': 'Abrigos',
-      'price': 48.0,
-      'stock': 9,
-    },
-  ];
-
-  for (var p in sampleProducts) {
-    await db.insertProduct(
-      p['name'],
-      p['cat'],
-      (p['price'] as num).toDouble(),
-      p['stock'],
-    );
+      if (mounted) {
+        Navigator.pop(context); // Cierra loading
+        setState(() {
+          cartItems.clear();
+          totalSale = 0.0;
+        });
+        _refreshProducts(); // Actualiza el stock visualmente
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("¡Venta registrada con éxito!")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Cierra loading
+        _showWarning(e.toString());
+      }
+    }
   }
 }
+
